@@ -6,10 +6,18 @@ node_modules/
 .env.local
 .env.production
 
-# SSH Keys and credentials
+# SSH Keys and credentials - NEVER COMMIT THESE
 keys/
 *.key
 *.pem
+*.ppk
+id_rsa*
+id_ed25519*
+id_dsa*
+*.crt
+*.csr
+*.p12
+*.pfx
 
 # Logs
 *.log
