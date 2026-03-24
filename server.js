@@ -2459,8 +2459,10 @@ async function loadTypeIDs() {
             const trimmedLine = line.trim();
             if (!trimmedLine) continue;
             
-            // Parse format: "TypeID - Name"
-            const match = trimmedLine.match(/^(\d+)\s*-\s*(.+)$/);
+                if (trimmedLine.startsWith('typeID') || trimmedLine.startsWith('-----------')) continue;
+            
+                // Parse either "TypeID - Name" or fixed-width table format.
+                const match = trimmedLine.match(/^(\d+)\s*(?:-\s*|\s{2,})(.+)$/);
             if (match) {
                 const typeID = parseInt(match[1], 10);
                 const name = match[2].trim();
@@ -2542,6 +2544,60 @@ async function isValidTradeableItem(typeID) {
     }
 }
 
+/**
+ * Find all matching typeID candidates from the local database
+ * Returns candidates ranked by relevance
+ */
+function findMatchingCandidates(searchTerm) {
+    const lowerSearchTerm = searchTerm.toLowerCase().trim();
+    const candidates = [];
+    const isBlueprintRequest = lowerSearchTerm.includes('blueprint');
+
+    // Search through all loaded type names
+    for (const [typeID, name] of eveFilesIDToNameMap.entries()) {
+        const lowerName = name.toLowerCase();
+        
+        // Exact match gets highest priority
+        if (lowerName === lowerSearchTerm) {
+            candidates.push({ typeID, name, score: 1000, matchType: 'exact' });
+        }
+        // Partial match - item name contains search term
+        else if (lowerName.includes(lowerSearchTerm)) {
+            // Exclude blueprints unless explicitly requested
+            if (!isBlueprintRequest && lowerName.includes('blueprint')) {
+                continue;
+            }
+            // Prefer shorter names (more specific matches)
+            const score = 500 - name.length;
+            candidates.push({ typeID, name, score, matchType: 'partial' });
+        }
+    }
+
+    // Sort by score (highest first)
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates;
+}
+
+/**
+ * Check if a typeID has active market orders in Jita
+ */
+async function hasMarketActivity(typeID) {
+    try {
+        const jitaRegion = 10000002;
+        const url = `https://esi.evetech.net/latest/markets/${jitaRegion}/orders/?datasource=tranquility&type_id=${typeID}`;
+        const response = await axios.get(url, {
+            headers: { 'User-Agent': USER_AGENT },
+            timeout: 5000
+        });
+        const hasOrders = response.data && response.data.length > 0;
+        console.log(`[hasMarketActivity] TypeID ${typeID}: ${hasOrders ? 'HAS' : 'NO'} market orders`);
+        return hasOrders;
+    } catch (error) {
+        console.log(`[hasMarketActivity] Error checking TypeID ${typeID}: ${error.message}`);
+        return false;
+    }
+}
+
 // Enhanced getItemTypeID function with eve-files.com support
 async function getEnhancedItemTypeID(itemName) {
     const lowerCaseItemName = itemName.toLowerCase().trim();
@@ -2567,21 +2623,40 @@ async function getEnhancedItemTypeID(itemName) {
         return PLEX_TYPE_ID;
     }
 
-    // Debug: Check what's in the local map
-    console.log(`[getEnhancedItemTypeID] Checking local map: isLoaded=${isEveFilesTypeIDMapLoaded}, mapSize=${eveFilesTypeIDMap.size}, hasItem=${eveFilesTypeIDMap.has(lowerCaseItemName)}`);
-
-    // Check eve-files cache for exact match, but validate it's tradeable
-    if (isEveFilesTypeIDMapLoaded && eveFilesTypeIDMap.has(lowerCaseItemName)) {
-        const candidateTypeID = eveFilesTypeIDMap.get(lowerCaseItemName);
-        console.log(`[getEnhancedItemTypeID] Found potential match in eve-files: "${itemName}" -> ${candidateTypeID}`);
-
-        // Validate this is a published, tradeable item
-        if (await isValidTradeableItem(candidateTypeID)) {
-            console.log(`[getEnhancedItemTypeID] Validated tradeable item: "${itemName}" -> ${candidateTypeID}`);
-            typeIDCache.set(lowerCaseItemName, candidateTypeID);
-            return candidateTypeID;
-        } else {
-            console.log(`[getEnhancedItemTypeID] Item ${candidateTypeID} not tradeable, trying Fuzzwork instead`);
+    // Multi-candidate intelligent selection with market validation
+    if (isEveFilesTypeIDMapLoaded) {
+        console.log(`[getEnhancedItemTypeID] Searching for candidates matching "${itemName}"`);
+        const candidates = findMatchingCandidates(itemName);
+        
+        if (candidates.length > 0) {
+            console.log(`[getEnhancedItemTypeID] Found ${candidates.length} candidates:`, 
+                candidates.slice(0, 5).map(c => `${c.name} (${c.typeID}, ${c.matchType})`));
+            
+            // Try each candidate in order, looking for one with market activity
+            for (const candidate of candidates) {
+                // First validate it's a tradeable item
+                if (await isValidTradeableItem(candidate.typeID)) {
+                    // Then check if it has market activity
+                    if (await hasMarketActivity(candidate.typeID)) {
+                        console.log(`[getEnhancedItemTypeID] Selected "${candidate.name}" (${candidate.typeID}) with market activity`);
+                        typeIDCache.set(lowerCaseItemName, candidate.typeID);
+                        return candidate.typeID;
+                    } else {
+                        console.log(`[getEnhancedItemTypeID] Skipping "${candidate.name}" (${candidate.typeID}) - no market activity`);
+                    }
+                } else {
+                    console.log(`[getEnhancedItemTypeID] Skipping "${candidate.name}" (${candidate.typeID}) - not tradeable`);
+                }
+            }
+            
+            // If no candidate has market activity, return first valid tradeable candidate
+            for (const candidate of candidates) {
+                if (await isValidTradeableItem(candidate.typeID)) {
+                    console.log(`[getEnhancedItemTypeID] No market activity found, using first tradeable: "${candidate.name}" (${candidate.typeID})`);
+                    typeIDCache.set(lowerCaseItemName, candidate.typeID);
+                    return candidate.typeID;
+                }
+            }
         }
     }
 

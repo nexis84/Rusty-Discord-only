@@ -43,13 +43,8 @@ export const MANUAL_TYPEID_MAPPINGS = {
     'angel dreadnought': 87383,
 
     // === CATALYST EXPANSION (November 2025) - Mining & Exploration ===
-    'pioneer': 89645,
-    'ore pioneer': 89645,
-    'pioneer mining destroyer': 89645,
-    'mining destroyer': 89645,
-
-    'pioneer consortium issue': 89647,
-    'pioneer consortium': 89647,
+    // Note: Pioneer variants removed - let resolver pick from all_typeids.txt with market validation
+    // This ensures correct variant selection (ORE Pioneer vs Pioneer Consortium Issue, etc.)
 
     'outrider': 89649,
     'ore outrider': 89649,

@@ -53,6 +53,12 @@ async function resolveNames(ids) {
     return results;
 }
 
+function normalizeNamedItems(items) {
+    return items
+        .filter(item => item && Number.isInteger(item.id) && typeof item.name === 'string' && item.name.trim())
+        .sort((a, b) => a.id - b.id);
+}
+
 async function main() {
     try {
         console.time('Total Time');
@@ -63,12 +69,10 @@ async function main() {
 
         // 2. Resolve Names
         // Note: Resolving 30k+ IDs might take a bit, but it's the only way to get names for everything efficiently
-        const namedItems = await resolveNames(typeIds);
+        const namedItems = normalizeNamedItems(await resolveNames(typeIds));
+        console.log(`Resolved ${namedItems.length} named inventory types.`);
 
-        // 3. Sort by Name
-        namedItems.sort((a, b) => a.name.localeCompare(b.name));
-
-        // 4. Format and Write to File
+        // 3. Format and write a machine-friendly file consumed by the bot loaders.
         const fileContent = namedItems.map(item => `${item.id} - ${item.name}`).join('\n');
 
         await fs.writeFile('all_typeids.txt', fileContent, 'utf8');

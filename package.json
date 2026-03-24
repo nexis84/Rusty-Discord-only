@@ -8,6 +8,7 @@
         "start": "node server.js",
         "dev": "node --watch server.js",
         "test": "node -c server.js && node -c twitch-bot.js && node -c twitch-utils.js && node -c token-manager.js && node -c gatecheck.js",
+        "types:refresh": "node fetch_all_types.js",
         "setup": "npm install && node -c server.js",
         "docker:build": "docker build -t rustybot-discord-bot .",
         "docker:run": "docker run --env-file .env -p 8080:8080 rustybot-discord-bot",
