@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: rustybot-discord-bot
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: USER_AGENT
+        value: RustyBot/1.0.0 (your@email.com)
+      # The following environment variables need to be set in the Render dashboard:
+      # DISCORD_TOKEN - Your Discord bot token
+      # CLIENT_ID - Your Discord application ID
+      # TWITCH_USERNAME - Your Twitch bot username (optional)
+      # TWITCH_OAUTH_TOKEN - Your Twitch OAuth token (optional)
+      # TWITCH_CHANNELS - Comma-separated list of Twitch channels (optional)
