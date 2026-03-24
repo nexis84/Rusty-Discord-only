@@ -8,13 +8,13 @@ $RemotePath = "~/rustybot-discord-twitch"
 
 # Check if local .env exists
 if (-not (Test-Path ".env")) {
-    Write-Host "❌ Error: .env file not found locally" -ForegroundColor Red
+    Write-Host "Error: .env file not found locally" -ForegroundColor Red
     Write-Host "   Create .env by copying .env.template and filling in your credentials:" -ForegroundColor Yellow
     Write-Host "   Copy-Item .env.template .env" -ForegroundColor Cyan
     exit 1
 }
 
-Write-Host "📤 Uploading .env to Oracle server..." -ForegroundColor Yellow
+Write-Host "Uploading .env to Oracle server..." -ForegroundColor Yellow
 
 # Fix SSH Key Permissions
 icacls $KeyPath /inheritance:r | Out-Null
@@ -24,17 +24,14 @@ icacls $KeyPath /grant:r "$($env:USERNAME):R" | Out-Null
 scp -i $KeyPath -o StrictHostKeyChecking=no .env ${User}@${IP}:${RemotePath}/.env
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "✅ .env uploaded successfully" -ForegroundColor Green
+    Write-Host "Success: .env uploaded successfully" -ForegroundColor Green
     
-    Write-Host "`n🔄 Restarting bot with new environment..." -ForegroundColor Yellow
-    ssh -i $KeyPath -o StrictHostKeyChecking=no ${User}@${IP} @"
-cd $RemotePath
-pm2 restart rustybot --update-env
-pm2 logs rustybot --lines 30 --nostream
-"@
+    Write-Host "`nRestarting bot with new environment..." -ForegroundColor Yellow
+    $RemoteCommand = "cd ~/rustybot-discord-twitch && pm2 restart rustybot --update-env && pm2 logs rustybot --lines 30 --nostream"
+    ssh -i $KeyPath -o StrictHostKeyChecking=no ${User}@${IP} $RemoteCommand
     
-    Write-Host "`n✅ Bot restarted! Check logs above for status." -ForegroundColor Green
+    Write-Host "`nBot restarted! Check logs above for status." -ForegroundColor Green
 } else {
-    Write-Host "❌ Failed to upload .env file" -ForegroundColor Red
+    Write-Host "Failed to upload .env file" -ForegroundColor Red
     exit 1
 }
